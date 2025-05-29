@@ -127,7 +127,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     for (var row in _csvData) {
       final placeName = row[0].toString();
       if (!_completedPlaces.contains(placeName)) {
-        final requiredDistance = double.parse(row[4].toString()); // Aerial distance from CSV
+        final requiredDistance = double.parse(row[3].toString()); // Aerial distance from CSV
         
         // Calculate current aerial distance from home
         final distanceFromHome = Geolocator.distanceBetween(
@@ -260,6 +260,21 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                             : 'Waiting for location...',
                         textAlign: TextAlign.center,
                       ),
+                      if (_currentPosition != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Distance from Home: ${(Geolocator.distanceBetween(
+                            LocationConstants.HOME_LATITUDE,
+                            LocationConstants.HOME_LONGITUDE,
+                            _currentPosition!.latitude,
+                            _currentPosition!.longitude,
+                          ) / 1000).toStringAsFixed(2)} km',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ],
                       if (_lastUpdateTime.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
