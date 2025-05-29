@@ -8,6 +8,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'models/daily_distance.dart';
 import 'models/tracked_location.dart';
+import 'models/completed_place.dart';
+import 'config/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,8 +19,10 @@ void main() async {
   await Hive.initFlutter(appDocumentDir.path);
   Hive.registerAdapter(DailyDistanceAdapter());
   Hive.registerAdapter(TrackedLocationAdapter());
+  Hive.registerAdapter(CompletedPlaceAdapter());
   await Hive.openBox<DailyDistance>('distances');
   await Hive.openBox<TrackedLocation>('locations');
+  await Hive.openBox<CompletedPlace>('completed_places');
   
   runApp(const MyApp());
 }
@@ -57,6 +61,8 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   List<List<dynamic>> _csvData = [];
   late Box<DailyDistance> _distancesBox;
   late Box<TrackedLocation> _locationsBox;
+  late Box<CompletedPlace> _completedPlacesBox;
+  Set<String> _completedPlaces = {};
   static const int MAX_LOCATIONS_PER_DAY = 8640; // Store max 8640 locations per day (1 location per 10 seconds)
 
   @override
@@ -64,8 +70,10 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     super.initState();
     _distancesBox = Hive.box<DailyDistance>('distances');
     _locationsBox = Hive.box<TrackedLocation>('locations');
+    _completedPlacesBox = Hive.box<CompletedPlace>('completed_places');
     _checkPermissions();
     _loadTodayDistance();
+    _loadCompletedPlaces();
     _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _loadCSVData();
     _cleanupOldLocations();
@@ -111,6 +119,50 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     await _locationsBox.deleteAll(keys);
   }
 
+  void _loadCompletedPlaces() {
+    _completedPlaces = _completedPlacesBox.values.map((place) => place.name).toSet();
+  }
+
+  void _checkPlaceCompletion(Position position) {
+    // Calculate current aerial distance from home
+    final distanceFromHome = Geolocator.distanceBetween(
+      LocationConstants.HOME_LATITUDE,
+      LocationConstants.HOME_LONGITUDE,
+      position.latitude,
+      position.longitude,
+    ) / 1000; // Convert to kilometers
+
+    for (var row in _csvData) {
+      final placeName = row[0].toString();
+      final requiredDistance = double.parse(row[3].toString()); // Aerial distance from CSV
+      
+      if (distanceFromHome >= requiredDistance) {
+        // Mark as completed if not already completed
+        if (!_completedPlaces.contains(placeName)) {
+          _completedPlaces.add(placeName);
+          _completedPlacesBox.add(CompletedPlace(
+            name: placeName,
+            completedAt: DateTime.now(),
+          ));
+          setState(() {});
+        }
+      } else {
+        // Mark as incomplete if previously completed
+        if (_completedPlaces.contains(placeName)) {
+          _completedPlaces.remove(placeName);
+          // Remove from Hive box
+          final keysToDelete = _completedPlacesBox.values
+              .where((place) => place.name == placeName)
+              .map((place) => _completedPlacesBox.keyAt(
+                  _completedPlacesBox.values.toList().indexOf(place)))
+              .toList();
+          _completedPlacesBox.deleteAll(keysToDelete);
+          setState(() {});
+        }
+      }
+    }
+  }
+
   void _startTracking() async {
     setState(() => _isTracking = true);
 
@@ -128,6 +180,9 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
         if (todayLocations < MAX_LOCATIONS_PER_DAY) {
           await _locationsBox.add(location);
         }
+
+        // Check for completed places
+        _checkPlaceCompletion(newPosition);
 
         setState(() {
           _currentPosition = newPosition;
@@ -217,6 +272,21 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                             : 'Waiting for location...',
                         textAlign: TextAlign.center,
                       ),
+                      if (_currentPosition != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Distance from Home: ${(Geolocator.distanceBetween(
+                            LocationConstants.HOME_LATITUDE,
+                            LocationConstants.HOME_LONGITUDE,
+                            _currentPosition!.latitude,
+                            _currentPosition!.longitude,
+                          ) / 1000).toStringAsFixed(2)} km',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ],
                       if (_lastUpdateTime.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -258,9 +328,18 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Stoppages',
-                        style: Theme.of(context).textTheme.titleLarge,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Stoppages',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          Text(
+                            '${_completedPlaces.length}/${_csvData.length} completed',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -269,9 +348,21 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                           itemCount: _csvData.length,
                           itemBuilder: (context, index) {
                             final row = _csvData[index];
+                            final placeName = row[0].toString();
+                            final isCompleted = _completedPlaces.contains(placeName);
+                            
                             return ListTile(
-                              title: Text(row[0].toString()),
-                              trailing: Text('${row[4]} km'),
+                              title: Text(
+                                placeName,
+                                style: TextStyle(
+                                  color: isCompleted ? Colors.green : null,
+                                  fontWeight: isCompleted ? FontWeight.bold : null,
+                                ),
+                              ),
+                              subtitle: Text('${row[4]} km aerial'),
+                              trailing: isCompleted 
+                                ? const Icon(Icons.check_circle, color: Colors.green)
+                                : Text('${row[4]} km'),
                             );
                           },
                         ),
