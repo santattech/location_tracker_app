@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:geolocator/geolocator.dart';
 
 part 'tracked_location.g.dart';
 
