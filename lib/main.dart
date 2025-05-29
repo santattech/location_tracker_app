@@ -7,6 +7,7 @@ import 'package:csv/csv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'models/daily_distance.dart';
+import 'models/tracked_location.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,9 @@ void main() async {
   final appDocumentDir = await path_provider.getApplicationDocumentsDirectory();
   await Hive.initFlutter(appDocumentDir.path);
   Hive.registerAdapter(DailyDistanceAdapter());
+  Hive.registerAdapter(TrackedLocationAdapter());
   await Hive.openBox<DailyDistance>('distances');
+  await Hive.openBox<TrackedLocation>('locations');
   
   runApp(const MyApp());
 }
@@ -53,15 +56,19 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   String _todayDate = '';
   List<List<dynamic>> _csvData = [];
   late Box<DailyDistance> _distancesBox;
+  late Box<TrackedLocation> _locationsBox;
+  static const int MAX_LOCATIONS_PER_DAY = 8640; // Store max 8640 locations per day (1 location per 10 seconds)
 
   @override
   void initState() {
     super.initState();
     _distancesBox = Hive.box<DailyDistance>('distances');
+    _locationsBox = Hive.box<TrackedLocation>('locations');
     _checkPermissions();
     _loadTodayDistance();
     _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _loadCSVData();
+    _cleanupOldLocations();
   }
 
   @override
@@ -93,7 +100,18 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     }
   }
 
-  Future<void> _startTracking() async {
+  Future<void> _cleanupOldLocations() async {
+    final now = DateTime.now();
+    final cutoffDate = DateTime(now.year, now.month, now.day - 7);
+    final keys = _locationsBox.keys.where((key) {
+      final location = _locationsBox.get(key) as TrackedLocation?;
+      return location != null && location.timestamp.isBefore(cutoffDate);
+    }).toList();
+    
+    await _locationsBox.deleteAll(keys);
+  }
+
+  void _startTracking() async {
     setState(() => _isTracking = true);
 
     // Start periodic location updates
@@ -102,6 +120,14 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
         Position newPosition = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
         );
+
+        // Store the location
+        final location = TrackedLocation.fromPosition(newPosition);
+        final todayLocations = _locationsBox.values.where((loc) => loc.date == location.date).length;
+        
+        if (todayLocations < MAX_LOCATIONS_PER_DAY) {
+          await _locationsBox.add(location);
+        }
 
         setState(() {
           _currentPosition = newPosition;
