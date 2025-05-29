@@ -124,27 +124,39 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   }
 
   void _checkPlaceCompletion(Position position) {
+    // Calculate current aerial distance from home
+    final distanceFromHome = Geolocator.distanceBetween(
+      LocationConstants.HOME_LATITUDE,
+      LocationConstants.HOME_LONGITUDE,
+      position.latitude,
+      position.longitude,
+    ) / 1000; // Convert to kilometers
+
     for (var row in _csvData) {
       final placeName = row[0].toString();
-      if (!_completedPlaces.contains(placeName)) {
-        final requiredDistance = double.parse(row[3].toString()); // Aerial distance from CSV
-        
-        // Calculate current aerial distance from home
-        final distanceFromHome = Geolocator.distanceBetween(
-          LocationConstants.HOME_LATITUDE,
-          LocationConstants.HOME_LONGITUDE,
-          position.latitude,
-          position.longitude,
-        ) / 1000; // Convert to kilometers
-
-        // If we've reached or exceeded the required distance
-        if (distanceFromHome >= requiredDistance) {
+      final requiredDistance = double.parse(row[3].toString()); // Aerial distance from CSV
+      
+      if (distanceFromHome >= requiredDistance) {
+        // Mark as completed if not already completed
+        if (!_completedPlaces.contains(placeName)) {
           _completedPlaces.add(placeName);
           _completedPlacesBox.add(CompletedPlace(
             name: placeName,
             completedAt: DateTime.now(),
           ));
-          // Update UI
+          setState(() {});
+        }
+      } else {
+        // Mark as incomplete if previously completed
+        if (_completedPlaces.contains(placeName)) {
+          _completedPlaces.remove(placeName);
+          // Remove from Hive box
+          final keysToDelete = _completedPlacesBox.values
+              .where((place) => place.name == placeName)
+              .map((place) => _completedPlacesBox.keyAt(
+                  _completedPlacesBox.values.toList().indexOf(place)))
+              .toList();
+          _completedPlacesBox.deleteAll(keysToDelete);
           setState(() {});
         }
       }
