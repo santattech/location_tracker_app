@@ -2,11 +2,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:csv/csv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart' as path_provider;
+import 'models/daily_distance.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Hive
+  final appDocumentDir = await path_provider.getApplicationDocumentsDirectory();
+  await Hive.initFlutter(appDocumentDir.path);
+  Hive.registerAdapter(DailyDistanceAdapter());
+  await Hive.openBox<DailyDistance>('distances');
+  
   runApp(const MyApp());
 }
 
@@ -42,10 +52,12 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   bool _isTracking = false;
   String _todayDate = '';
   List<List<dynamic>> _csvData = [];
+  late Box<DailyDistance> _distancesBox;
 
   @override
   void initState() {
     super.initState();
+    _distancesBox = Hive.box<DailyDistance>('distances');
     _checkPermissions();
     _loadTodayDistance();
     _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -120,16 +132,23 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   }
 
   Future<void> _saveTodayDistance() async {
-    final prefs = await SharedPreferences.getInstance();
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    await prefs.setDouble('distance_$today', _totalDistance);
+    final dailyDistance = DailyDistance(
+      date: today,
+      distance: _totalDistance,
+      lastUpdated: DateTime.now(),
+    );
+    await _distancesBox.put(today, dailyDistance);
   }
 
   Future<void> _loadTodayDistance() async {
-    final prefs = await SharedPreferences.getInstance();
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final dailyDistance = _distancesBox.get(today);
     setState(() {
-      _totalDistance = prefs.getDouble('distance_$today') ?? 0.0;
+      _totalDistance = dailyDistance?.distance ?? 0.0;
+      if (dailyDistance != null) {
+        _lastUpdateTime = DateFormat('HH:mm:ss').format(dailyDistance.lastUpdated);
+      }
     });
   }
 
@@ -226,7 +245,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                             final row = _csvData[index];
                             return ListTile(
                               title: Text(row[0].toString()),
-                              trailing: Text('${row[3]} km'),
+                              trailing: Text('${row[4]} km'),
                             );
                           },
                         ),
