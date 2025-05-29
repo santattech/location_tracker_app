@@ -36,3 +36,12 @@ The part directive tells Dart that daily_distance.g.dart is a partial implementa
 2. Handle serialization (converting your object to/from binary format for storage)
 3. Create type adapters that Hive uses to read and write your custom objects
 4. The daily_distance.g.dart file is automatically generated when you run the Hive code generator using the command:
+
+
+### How to release apk
+
+1. `flutter clean`
+2. `flutter pub get`
+3. `flutter build apk --release`
+the build should be availaable at 
+`Built build\app\outputs\flutter-apk\app-release.apk (40.2MB). `
