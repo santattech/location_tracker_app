@@ -63,6 +63,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   late Box<TrackedLocation> _locationsBox;
   late Box<CompletedPlace> _completedPlacesBox;
   Set<String> _completedPlaces = {};
+  final ScrollController _scrollController = ScrollController();
   static const int MAX_LOCATIONS_PER_DAY =
       8640; // Store max 8640 locations per day (1 location per 10 seconds)
 
@@ -78,10 +79,16 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _loadCSVData();
     _cleanupOldLocations();
+    
+    // Add post-frame callback to scroll to first pending location
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToFirstPendingLocation();
+    });
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _locationTimer?.cancel();
     super.dispose();
   }
@@ -249,6 +256,25 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     });
   }
 
+  void _scrollToFirstPendingLocation() {
+    if (_csvData.isEmpty) return;
+
+    // Find the index of the first pending location
+    final firstPendingIndex = _csvData.indexWhere(
+      (row) => !_completedPlaces.contains(row[0].toString()),
+    );
+
+    if (firstPendingIndex != -1) {
+      // Calculate the scroll offset based on item height (approximately 60 pixels per item)
+      final scrollOffset = firstPendingIndex * 60.0;
+      _scrollController.animateTo(
+        scrollOffset,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -353,6 +379,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                       SizedBox(
                         height: 200,
                         child: ListView.builder(
+                          controller: _scrollController,
                           itemCount: _csvData.length,
                           itemBuilder: (context, index) {
                             final row = _csvData[index];
@@ -366,9 +393,9 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                               title: Text(
                                 placeName,
                                 style: TextStyle(
-                                  color: containsToll
+                                  color: isCompleted
                                       ? Colors.green
-                                      : (isCompleted
+                                      : (containsToll
                                           ? Colors.orange
                                           : Colors.black),
                                   fontWeight:
