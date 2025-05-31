@@ -81,10 +81,10 @@ class _MapScreenState extends State<MapScreen> {
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: _currentPosition != null
+          center: _currentPosition != null
               ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
               : LatLng(LocationConstants.HOME_LATITUDE, LocationConstants.HOME_LONGITUDE),
-          initialZoom: 13.0,
+          zoom: 13.0,
           onTap: (_, __) {
             setState(() {
               _isFollowingLocation = false;
@@ -102,8 +102,8 @@ class _MapScreenState extends State<MapScreen> {
               Polyline(
                 points: _trackedLocations
                     .map((loc) => LatLng(
-                          double.parse(loc.latitude),
-                          double.parse(loc.longitude),
+                          loc.latitude,
+                          loc.longitude,
                         ))
                     .toList(),
                 color: Colors.blue,
@@ -122,7 +122,7 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 width: 80,
                 height: 80,
-                child: const Icon(
+                builder: (context) => const Icon(
                   Icons.home,
                   color: Colors.red,
                   size: 30,
@@ -137,7 +137,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                   width: 80,
                   height: 80,
-                  child: Container(
+                  builder: (context) => Container(
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.3),
                       shape: BoxShape.circle,
@@ -153,12 +153,12 @@ class _MapScreenState extends State<MapScreen> {
               ..._trackedLocations.map(
                 (loc) => Marker(
                   point: LatLng(
-                    double.parse(loc.latitude),
-                    double.parse(loc.longitude),
+                    loc.latitude,
+                    loc.longitude,
                   ),
                   width: 10,
                   height: 10,
-                  child: Container(
+                  builder: (context) => Container(
                     decoration: const BoxDecoration(
                       color: Colors.blue,
                       shape: BoxShape.circle,
