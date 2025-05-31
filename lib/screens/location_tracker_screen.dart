@@ -10,6 +10,7 @@ import '../models/tracked_location.dart';
 import '../models/completed_place.dart';
 import '../models/app_settings.dart';
 import '../config/constants.dart';
+import 'about_screen.dart';
 
 class LocationTrackerScreen extends StatefulWidget {
   const LocationTrackerScreen({super.key});
@@ -290,6 +291,30 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
       appBar: AppBar(
         title: const Text('Location Tracker'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'about') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AboutScreen()),
+                );
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'about',
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline),
+                    SizedBox(width: 8),
+                    Text('About'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
