@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 import '../models/tracked_location.dart';
 import '../config/constants.dart';
 
@@ -20,7 +21,13 @@ class _MapScreenState extends State<MapScreen> {
   List<TrackedLocation> _trackedLocations = [];
   bool _isFollowingLocation = true;
   String _todayDate = '';
-
+  
+  // Playback state
+  bool _isPlaying = false;
+  int _currentLocationIndex = 0;
+  Timer? _playbackTimer;
+  double _playbackSpeed = 1.0; // Multiplier for playback speed
+  
   @override
   void initState() {
     super.initState();
@@ -37,6 +44,59 @@ class _MapScreenState extends State<MapScreen> {
           .where((location) => location.date == _todayDate)
           .toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp)); // Sort by timestamp
+    });
+  }
+
+  void _startPlayback() {
+    if (_trackedLocations.isEmpty) return;
+    
+    setState(() {
+      _isPlaying = true;
+      if (_currentLocationIndex >= _trackedLocations.length) {
+        _currentLocationIndex = 0;
+      }
+    });
+
+    // Calculate time difference between consecutive points
+    _playbackTimer = Timer.periodic(Duration(milliseconds: (500 ~/ _playbackSpeed)), (timer) {
+      if (_currentLocationIndex < _trackedLocations.length - 1) {
+        setState(() {
+          _currentLocationIndex++;
+        });
+        
+        // Move map to follow the playback marker
+        if (_isFollowingLocation) {
+          _mapController.move(
+            LatLng(
+              _trackedLocations[_currentLocationIndex].latitude,
+              _trackedLocations[_currentLocationIndex].longitude,
+            ),
+            15.0,
+          );
+        }
+      } else {
+        _stopPlayback();
+      }
+    });
+  }
+
+  void _stopPlayback() {
+    _playbackTimer?.cancel();
+    setState(() {
+      _isPlaying = false;
+    });
+  }
+
+  void _resetPlayback() {
+    _stopPlayback();
+    setState(() {
+      _currentLocationIndex = 0;
+    });
+  }
+
+  void _onSliderChanged(double value) {
+    setState(() {
+      _currentLocationIndex = value.toInt();
     });
   }
 
@@ -74,11 +134,21 @@ class _MapScreenState extends State<MapScreen> {
             onPressed: () {
               setState(() {
                 _isFollowingLocation = !_isFollowingLocation;
-                if (_isFollowingLocation && _currentPosition != null) {
-                  _mapController.move(
-                    LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                    15.0,
-                  );
+                if (_isFollowingLocation) {
+                  if (_isPlaying && _currentLocationIndex < _trackedLocations.length) {
+                    _mapController.move(
+                      LatLng(
+                        _trackedLocations[_currentLocationIndex].latitude,
+                        _trackedLocations[_currentLocationIndex].longitude,
+                      ),
+                      15.0,
+                    );
+                  } else if (_currentPosition != null) {
+                    _mapController.move(
+                      LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                      15.0,
+                    );
+                  }
                 }
               });
             },
@@ -125,9 +195,22 @@ class _MapScreenState extends State<MapScreen> {
                                 loc.longitude,
                               ))
                           .toList(),
-                      color: Colors.blue,
+                      color: Colors.blue.withOpacity(0.3),
                       strokeWidth: 3.0,
                     ),
+                    // Draw path up to current playback position
+                    if (_trackedLocations.isNotEmpty)
+                      Polyline(
+                        points: _trackedLocations
+                            .sublist(0, _currentLocationIndex + 1)
+                            .map((loc) => LatLng(
+                                  loc.latitude,
+                                  loc.longitude,
+                                ))
+                            .toList(),
+                        color: Colors.blue,
+                        strokeWidth: 3.0,
+                      ),
                   ],
                 ),
                 // Show tracked location markers
@@ -168,22 +251,38 @@ class _MapScreenState extends State<MapScreen> {
                           ),
                         ),
                       ),
-                    // Tracked locations markers with timestamps
+                    // Playback position marker
+                    if (_trackedLocations.isNotEmpty)
+                      Marker(
+                        point: LatLng(
+                          _trackedLocations[_currentLocationIndex].latitude,
+                          _trackedLocations[_currentLocationIndex].longitude,
+                        ),
+                        width: 30,
+                        height: 30,
+                        builder: (context) => Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    // All tracked locations as small dots
                     ..._trackedLocations.map(
                       (loc) => Marker(
                         point: LatLng(
                           loc.latitude,
                           loc.longitude,
                         ),
-                        width: 60,
-                        height: 60,
+                        width: 10,
+                        height: 10,
                         builder: (context) => Tooltip(
                           message: DateFormat('HH:mm:ss').format(loc.timestamp),
                           child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              color: Colors.blue,
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.5),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -195,6 +294,82 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
           ),
+          // Playback controls
+          if (_trackedLocations.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              color: Theme.of(context).colorScheme.surface,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Time indicator
+                  Text(
+                    DateFormat('HH:mm:ss').format(
+                      _trackedLocations[_currentLocationIndex].timestamp,
+                    ),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  // Progress slider
+                  Slider(
+                    value: _currentLocationIndex.toDouble(),
+                    min: 0,
+                    max: (_trackedLocations.length - 1).toDouble(),
+                    onChanged: _onSliderChanged,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Reset button
+                      IconButton(
+                        icon: const Icon(Icons.replay),
+                        onPressed: _resetPlayback,
+                      ),
+                      // Play/Pause button
+                      IconButton(
+                        icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                        onPressed: _isPlaying ? _stopPlayback : _startPlayback,
+                      ),
+                      // Speed control
+                      PopupMenuButton<double>(
+                        initialValue: _playbackSpeed,
+                        onSelected: (speed) {
+                          setState(() {
+                            _playbackSpeed = speed;
+                          });
+                          if (_isPlaying) {
+                            _stopPlayback();
+                            _startPlayback();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 0.5,
+                            child: Text('0.5x'),
+                          ),
+                          const PopupMenuItem(
+                            value: 1.0,
+                            child: Text('1x'),
+                          ),
+                          const PopupMenuItem(
+                            value: 2.0,
+                            child: Text('2x'),
+                          ),
+                          const PopupMenuItem(
+                            value: 5.0,
+                            child: Text('5x'),
+                          ),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Text('${_playbackSpeed}x'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -208,6 +383,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _playbackTimer?.cancel();
     _mapController.dispose();
     super.dispose();
   }
