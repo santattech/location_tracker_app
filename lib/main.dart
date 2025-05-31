@@ -133,6 +133,9 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   }
 
   void _checkPlaceCompletion(Position position) {
+    bool wasLocationCompleted = false;
+    String? completedPlaceName;
+    
     // Calculate current aerial distance from home
     final distanceFromHome = Geolocator.distanceBetween(
           LocationConstants.HOME_LATITUDE,
@@ -155,7 +158,8 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
             name: placeName,
             completedAt: DateTime.now(),
           ));
-          setState(() {});
+          wasLocationCompleted = true;
+          completedPlaceName = placeName;
         }
       } else {
         // Mark as incomplete if previously completed
@@ -168,9 +172,37 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                   .keyAt(_completedPlacesBox.values.toList().indexOf(place)))
               .toList();
           _completedPlacesBox.deleteAll(keysToDelete);
-          setState(() {});
         }
       }
+    }
+
+    // If a location was completed, scroll to the next pending location
+    if (wasLocationCompleted) {
+      setState(() {
+        // First setState to update the UI with the new completion status
+      });
+      
+      // Use a small delay to ensure the ListView has updated
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _scrollToFirstPendingLocation();
+        
+        // Show a snackbar to indicate completion
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$completedPlaceName completed! Showing next location.'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'OK',
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+      });
+    } else {
+      setState(() {});
     }
   }
 
@@ -388,25 +420,48 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                                 _completedPlaces.contains(placeName);
                             final containsToll =
                                 placeName.toLowerCase().contains('toll');
+                            
+                            // Find first pending location index
+                            final firstPendingIndex = _csvData.indexWhere(
+                              (row) => !_completedPlaces.contains(row[0].toString()),
+                            );
+                            final isFirstPending = index == firstPendingIndex;
 
-                            return ListTile(
-                              title: Text(
-                                placeName,
-                                style: TextStyle(
-                                  color: isCompleted
-                                      ? Colors.green
-                                      : (containsToll
-                                          ? Colors.orange
-                                          : Colors.black),
-                                  fontWeight:
-                                      isCompleted ? FontWeight.bold : null,
+                            return Container(
+                              decoration: isFirstPending
+                                  ? BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                        width: 1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    )
+                                  : null,
+                              child: ListTile(
+                                leading: isFirstPending
+                                    ? Icon(Icons.arrow_right,
+                                        color: Theme.of(context).colorScheme.primary,
+                                        size: 32)
+                                    : null,
+                                title: Text(
+                                  placeName,
+                                  style: TextStyle(
+                                    color: isCompleted
+                                        ? Colors.green
+                                        : (containsToll
+                                            ? Colors.orange
+                                            : Colors.black),
+                                    fontWeight:
+                                        isCompleted ? FontWeight.bold : null,
+                                  ),
                                 ),
+                                subtitle: Text('${row[4]} km aerial'),
+                                trailing: isCompleted
+                                    ? const Icon(Icons.check_circle,
+                                        color: Colors.green)
+                                    : Text('${row[4]} km'),
                               ),
-                              subtitle: Text('${row[4]} km aerial'),
-                              trailing: isCompleted
-                                  ? const Icon(Icons.check_circle,
-                                      color: Colors.green)
-                                  : Text('${row[4]} km'),
                             );
                           },
                         ),
