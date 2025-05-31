@@ -10,6 +10,7 @@ import 'models/daily_distance.dart';
 import 'models/tracked_location.dart';
 import 'models/completed_place.dart';
 import 'config/constants.dart';
+import 'models/app_settings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,9 +21,11 @@ void main() async {
   Hive.registerAdapter(DailyDistanceAdapter());
   Hive.registerAdapter(TrackedLocationAdapter());
   Hive.registerAdapter(CompletedPlaceAdapter());
+  Hive.registerAdapter(AppSettingsAdapter());
   await Hive.openBox<DailyDistance>('distances');
   await Hive.openBox<TrackedLocation>('locations');
   await Hive.openBox<CompletedPlace>('completed_places');
+  await Hive.openBox<AppSettings>('settings');
 
   runApp(const MyApp());
 }
@@ -62,6 +65,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   late Box<DailyDistance> _distancesBox;
   late Box<TrackedLocation> _locationsBox;
   late Box<CompletedPlace> _completedPlacesBox;
+  late Box<AppSettings> _settingsBox;
   Set<String> _completedPlaces = {};
   final ScrollController _scrollController = ScrollController();
   static const int MAX_LOCATIONS_PER_DAY =
@@ -73,12 +77,14 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     _distancesBox = Hive.box<DailyDistance>('distances');
     _locationsBox = Hive.box<TrackedLocation>('locations');
     _completedPlacesBox = Hive.box<CompletedPlace>('completed_places');
+    _settingsBox = Hive.box<AppSettings>('settings');
     _checkPermissions();
     _loadTodayDistance();
     _loadCompletedPlaces();
     _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _loadCSVData();
     _cleanupOldLocations();
+    _restoreTrackingState();
     
     // Add post-frame callback to scroll to first pending location
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -206,7 +212,20 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     }
   }
 
+  void _restoreTrackingState() {
+    final settings = _settingsBox.get('current') ?? AppSettings();
+    if (settings.isTracking) {
+      _startTracking();
+    }
+  }
+
   void _startTracking() async {
+    // Save tracking state
+    final settings = _settingsBox.get('current') ?? AppSettings();
+    settings.isTracking = true;
+    settings.lastTrackingUpdate = DateTime.now();
+    await _settingsBox.put('current', settings);
+
     setState(() => _isTracking = true);
 
     // Start periodic location updates
@@ -215,6 +234,13 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
         Position newPosition = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
         );
+
+        // Update last tracking time
+        final settings = _settingsBox.get('current');
+        if (settings != null) {
+          settings.lastTrackingUpdate = DateTime.now();
+          await _settingsBox.put('current', settings);
+        }
 
         // Store the location
         final location = TrackedLocation.fromPosition(newPosition);
@@ -252,8 +278,15 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     });
   }
 
-  void _stopTracking() {
+  void _stopTracking() async {
     _locationTimer?.cancel();
+    
+    // Save tracking state
+    final settings = _settingsBox.get('current') ?? AppSettings();
+    settings.isTracking = false;
+    settings.lastTrackingUpdate = DateTime.now();
+    await _settingsBox.put('current', settings);
+    
     setState(() => _isTracking = false);
   }
 
@@ -456,7 +489,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                                         isCompleted ? FontWeight.bold : null,
                                   ),
                                 ),
-                                subtitle: Text('${row[4]} km aerial'),
+                                subtitle: Text('${row[3]} km aerial'),
                                 trailing: isCompleted
                                     ? const Icon(Icons.check_circle,
                                         color: Colors.green)
