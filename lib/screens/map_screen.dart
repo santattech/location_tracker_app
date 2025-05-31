@@ -195,8 +195,8 @@ class _MapScreenState extends State<MapScreen> {
                                 loc.longitude,
                               ))
                           .toList(),
-                      color: Colors.blue.withOpacity(0.3),
-                      strokeWidth: 3.0,
+                      color: Colors.grey.withOpacity(0.3),
+                      strokeWidth: 4.0,
                     ),
                     // Draw path up to current playback position
                     if (_trackedLocations.isNotEmpty)
@@ -208,8 +208,8 @@ class _MapScreenState extends State<MapScreen> {
                                   loc.longitude,
                                 ))
                             .toList(),
-                        color: Colors.blue,
-                        strokeWidth: 3.0,
+                        color: Colors.deepPurple,
+                        strokeWidth: 4.0,
                       ),
                   ],
                 ),
@@ -222,72 +222,113 @@ class _MapScreenState extends State<MapScreen> {
                         LocationConstants.HOME_LATITUDE,
                         LocationConstants.HOME_LONGITUDE,
                       ),
-                      width: 80,
-                      height: 80,
-                      builder: (context) => const Icon(
-                        Icons.home,
-                        color: Colors.red,
-                        size: 30,
+                      width: 50,
+                      height: 50,
+                      builder: (context) => Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                        ),
+                        child: const Icon(
+                          Icons.home,
+                          color: Colors.red,
+                          size: 30,
+                        ),
                       ),
                     ),
-                    // Current location marker
+                    // Current real-time location marker
                     if (_currentPosition != null)
                       Marker(
                         point: LatLng(
                           _currentPosition!.latitude,
                           _currentPosition!.longitude,
                         ),
-                        width: 80,
-                        height: 80,
+                        width: 50,
+                        height: 50,
                         builder: (context) => Container(
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.3),
+                            color: Colors.blue.withOpacity(0.2),
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.blue,
+                              width: 2,
+                            ),
                           ),
                           child: const Icon(
                             Icons.my_location,
                             color: Colors.blue,
-                            size: 30,
+                            size: 25,
                           ),
                         ),
                       ),
-                    // Playback position marker
+                    // Playback position marker (black dot)
                     if (_trackedLocations.isNotEmpty)
                       Marker(
                         point: LatLng(
                           _trackedLocations[_currentLocationIndex].latitude,
                           _trackedLocations[_currentLocationIndex].longitude,
                         ),
-                        width: 30,
-                        height: 30,
+                        width: 40,
+                        height: 40,
                         builder: (context) => Container(
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: Colors.black,
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 5,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    // All tracked locations as small dots
-                    ..._trackedLocations.map(
-                      (loc) => Marker(
-                        point: LatLng(
-                          loc.latitude,
-                          loc.longitude,
-                        ),
-                        width: 10,
-                        height: 10,
-                        builder: (context) => Tooltip(
-                          message: DateFormat('HH:mm:ss').format(loc.timestamp),
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.5),
-                              shape: BoxShape.circle,
+                    // All tracked locations as small dots with gradient color based on time
+                    ..._trackedLocations.asMap().entries.map(
+                      (entry) {
+                        final index = entry.key;
+                        final loc = entry.value;
+                        
+                        // Calculate progress for color gradient (0.0 to 1.0)
+                        final progress = index / (_trackedLocations.length - 1);
+                        
+                        // Create a color gradient from green (start) to red (end)
+                        final color = Color.lerp(
+                          Colors.green,
+                          Colors.red,
+                          progress,
+                        )!;
+                        
+                        // Make dots before current position more visible
+                        final isBeforeCurrent = index <= _currentLocationIndex;
+                        
+                        return Marker(
+                          point: LatLng(
+                            loc.latitude,
+                            loc.longitude,
+                          ),
+                          width: isBeforeCurrent ? 16 : 12,
+                          height: isBeforeCurrent ? 16 : 12,
+                          builder: (context) => Tooltip(
+                            message: DateFormat('HH:mm:ss').format(loc.timestamp),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(isBeforeCurrent ? 0.8 : 0.3),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: color.withOpacity(isBeforeCurrent ? 1 : 0.5),
+                                  width: isBeforeCurrent ? 2 : 1,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ],
                 ),
