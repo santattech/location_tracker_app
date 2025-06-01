@@ -11,6 +11,7 @@ import '../models/completed_place.dart';
 import '../models/app_settings.dart';
 import '../config/constants.dart';
 import 'about_screen.dart';
+import 'map_screen.dart';
 
 class LocationTrackerScreen extends StatefulWidget {
   const LocationTrackerScreen({super.key});
@@ -292,6 +293,15 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
         title: const Text('Location Tracker'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MapScreen()),
+              );
+            },
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'about') {
