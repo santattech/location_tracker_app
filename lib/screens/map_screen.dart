@@ -20,7 +20,8 @@ class _MapScreenState extends State<MapScreen> {
   Position? _currentPosition;
   List<TrackedLocation> _trackedLocations = [];
   bool _isFollowingLocation = true;
-  String _todayDate = '';
+  late DateTime _selectedDate;
+  List<DateTime> _availableDates = [];
   
   // Playback state
   bool _isPlaying = false;
@@ -31,20 +32,104 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _selectedDate = DateTime.now();
+    _loadAvailableDates();
     _loadTrackedLocations();
     _getCurrentLocation();
   }
 
+  void _loadAvailableDates() {
+    final locationsBox = Hive.box<TrackedLocation>('locations');
+    final allDates = locationsBox.values
+        .map((location) => DateTime.parse(location.date))
+        .toSet()
+        .toList();
+    
+    allDates.sort((a, b) => b.compareTo(a)); // Sort in descending order
+    
+    setState(() {
+      _availableDates = allDates;
+    });
+  }
+
   void _loadTrackedLocations() {
     final locationsBox = Hive.box<TrackedLocation>('locations');
+    final selectedDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    
     setState(() {
-      // Filter locations for today only
       _trackedLocations = locationsBox.values
-          .where((location) => location.date == _todayDate)
+          .where((location) => location.date == selectedDateStr)
           .toList()
-        ..sort((a, b) => a.timestamp.compareTo(b.timestamp)); // Sort by timestamp
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      
+      // Reset playback when loading new data
+      _currentLocationIndex = 0;
+      _isPlaying = false;
+      _playbackTimer?.cancel();
     });
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    if (_availableDates.isEmpty) return;
+
+    final DateTime? picked = await showDialog<DateTime>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Date'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _availableDates.length,
+              itemBuilder: (context, index) {
+                final date = _availableDates[index];
+                final isSelected = date.year == _selectedDate.year &&
+                    date.month == _selectedDate.month &&
+                    date.day == _selectedDate.day;
+                
+                return ListTile(
+                  title: Text(
+                    DateFormat('MMM dd, yyyy').format(date),
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    _getDateDescription(date),
+                    style: TextStyle(
+                      color: isSelected ? Theme.of(context).primaryColor : null,
+                    ),
+                  ),
+                  selected: isSelected,
+                  onTap: () => Navigator.of(context).pop(date),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      _loadTrackedLocations();
+    }
+  }
+
+  String _getDateDescription(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date).inDays;
+    
+    if (difference == 0) {
+      return 'Today';
+    } else if (difference == 1) {
+      return 'Yesterday';
+    } else {
+      return '$difference days ago';
+    }
   }
 
   void _startPlayback() {
@@ -124,7 +209,18 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Today\'s Tracked Locations'),
+        title: GestureDetector(
+          onTap: () => _selectDate(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                DateFormat('MMM dd, yyyy').format(_selectedDate),
+              ),
+              const Icon(Icons.arrow_drop_down),
+            ],
+          ),
+        ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
@@ -160,7 +256,7 @@ class _MapScreenState extends State<MapScreen> {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
-              'Showing ${_trackedLocations.length} locations for $_todayDate',
+              'Showing ${_trackedLocations.length} locations for ${_getDateDescription(_selectedDate)}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
@@ -268,20 +364,20 @@ class _MapScreenState extends State<MapScreen> {
                           _trackedLocations[_currentLocationIndex].latitude,
                           _trackedLocations[_currentLocationIndex].longitude,
                         ),
-                        width: 40,
-                        height: 40,
+                        width: 20,
+                        height: 20,
                         builder: (context) => Container(
                           decoration: BoxDecoration(
                             color: Colors.black,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: Colors.white,
-                              width: 3,
+                              width: 2,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 5,
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 3,
                                 spreadRadius: 1,
                               ),
                             ],

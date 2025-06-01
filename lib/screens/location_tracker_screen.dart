@@ -87,6 +87,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     }
   }
 
+  // Cleanup old locations to prevent memory issues, seven days is the limit
   Future<void> _cleanupOldLocations() async {
     final now = DateTime.now();
     final cutoffDate = DateTime(now.year, now.month, now.day - 7);
