@@ -6,9 +6,13 @@ import 'models/tracked_location.dart';
 import 'models/completed_place.dart';
 import 'models/app_settings.dart';
 import 'screens/location_tracker_screen.dart';
+import 'services/background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize background service
+  await BackgroundLocationService.initializeService();
 
   // Initialize Hive
   final appDocumentDir = await path_provider.getApplicationDocumentsDirectory();

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:csv/csv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../models/daily_distance.dart';
 import '../models/tracked_location.dart';
 import '../models/completed_place.dart';
@@ -181,56 +182,17 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     settings.lastTrackingUpdate = DateTime.now();
     await _settingsBox.put('current', settings);
 
+    // Start the background service
+    final service = FlutterBackgroundService();
+    await service.startService();
+
     setState(() => _isTracking = true);
-
-    _locationTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      try {
-        Position newPosition = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-
-        final settings = _settingsBox.get('current');
-        if (settings != null) {
-          settings.lastTrackingUpdate = DateTime.now();
-          await _settingsBox.put('current', settings);
-        }
-
-        final location = TrackedLocation.fromPosition(newPosition);
-        final todayLocations = _locationsBox.values
-            .where((loc) => loc.date == location.date)
-            .length;
-
-        if (todayLocations < MAX_LOCATIONS_PER_DAY) {
-          await _locationsBox.add(location);
-        }
-
-        _checkPlaceCompletion(newPosition);
-
-        setState(() {
-          _currentPosition = newPosition;
-          _lastUpdateTime = DateFormat('HH:mm:ss').format(DateTime.now());
-
-          if (_lastPosition != null) {
-            double distance = Geolocator.distanceBetween(
-              _lastPosition!.latitude,
-              _lastPosition!.longitude,
-              newPosition.latitude,
-              newPosition.longitude,
-            );
-            _totalDistance += distance;
-            _saveTodayDistance();
-          }
-
-          _lastPosition = newPosition;
-        });
-      } catch (e) {
-        print('Error getting location: $e');
-      }
-    });
   }
 
   void _stopTracking() async {
-    _locationTimer?.cancel();
+    // Stop the background service
+    final service = FlutterBackgroundService();
+    service.invoke("stopService");
     
     final settings = _settingsBox.get('current') ?? AppSettings();
     settings.isTracking = false;
