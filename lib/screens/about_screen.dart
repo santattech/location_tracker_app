@@ -9,7 +9,7 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  String _version = '1.0.0';
+  String _version = '1.1.0';
   String _buildNumber = '310520251608';
 
   @override
