@@ -12,6 +12,7 @@ import '../models/app_settings.dart';
 import '../config/constants.dart';
 import 'about_screen.dart';
 import 'map_screen.dart';
+import 'location_history_screen.dart';
 
 class LocationTrackerScreen extends StatefulWidget {
   const LocationTrackerScreen({super.key});
@@ -87,6 +88,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     }
   }
 
+  // Cleanup old locations to prevent memory issues, seven days is the limit
   Future<void> _cleanupOldLocations() async {
     final now = DateTime.now();
     final cutoffDate = DateTime(now.year, now.month, now.day - 7);
@@ -293,6 +295,15 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
         title: const Text('Location Tracker'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LocationHistoryScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.map),
             onPressed: () {
