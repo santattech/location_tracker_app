@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'services/background_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'models/daily_distance.dart';
@@ -9,6 +12,20 @@ import 'screens/location_tracker_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Geolocator.requestPermission();
+
+  await FlutterBackgroundService().configure(
+    androidConfiguration: AndroidConfiguration(
+      onStart: onStart,
+      isForegroundMode: true, 
+      autoStart: false,
+      notificationChannelId: 'location_tracking',
+      initialNotificationTitle: 'Location tracking',
+      initialNotificationContent: 'Service is running in the background',
+    ),
+    iosConfiguration: IosConfiguration()
+  );
 
   // Initialize Hive
   final appDocumentDir = await path_provider.getApplicationDocumentsDirectory();
