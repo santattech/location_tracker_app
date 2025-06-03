@@ -8,6 +8,7 @@ import 'models/daily_distance.dart';
 import 'models/tracked_location.dart';
 import 'models/completed_place.dart';
 import 'models/app_settings.dart';
+import 'models/destination.dart';
 import 'screens/location_tracker_screen.dart';
 
 void main() async {
@@ -36,12 +37,14 @@ void main() async {
   Hive.registerAdapter(TrackedLocationAdapter());
   Hive.registerAdapter(CompletedPlaceAdapter());
   Hive.registerAdapter(AppSettingsAdapter());
+  Hive.registerAdapter(DestinationAdapter());
   
   // Open Hive boxes
   await Hive.openBox<DailyDistance>('distances');
   await Hive.openBox<TrackedLocation>('locations');
   await Hive.openBox<CompletedPlace>('completed_places');
   await Hive.openBox<AppSettings>('settings');
+  await Hive.openBox<Destination>('destinationBox');
 
   runApp(const MyApp());
 }

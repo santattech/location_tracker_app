@@ -9,10 +9,12 @@ import '../models/daily_distance.dart';
 import '../models/tracked_location.dart';
 import '../models/completed_place.dart';
 import '../models/app_settings.dart';
+import '../models/destination.dart';
 import '../config/constants.dart';
 import 'about_screen.dart';
 import 'map_screen.dart';
 import 'location_history_screen.dart';
+import 'destination_input_screen.dart';
 
 class LocationTrackerScreen extends StatefulWidget {
   const LocationTrackerScreen({super.key});
@@ -24,6 +26,7 @@ class LocationTrackerScreen extends StatefulWidget {
 class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   Position? _currentPosition;
   double _totalDistance = 0.0;
+  double _destinationDistance = 0.0;
   Position? _lastPosition;
   Timer? _locationTimer;
   String _lastUpdateTime = '';
@@ -34,6 +37,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
   late Box<TrackedLocation> _locationsBox;
   late Box<CompletedPlace> _completedPlacesBox;
   late Box<AppSettings> _settingsBox;
+  late Box<Destination> _destinationBox;
   Set<String> _completedPlaces = {};
   final ScrollController _scrollController = ScrollController();
   static const int MAX_LOCATIONS_PER_DAY = 8640;
@@ -45,6 +49,7 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     _locationsBox = Hive.box<TrackedLocation>('locations');
     _completedPlacesBox = Hive.box<CompletedPlace>('completed_places');
     _settingsBox = Hive.box<AppSettings>('settings');
+    _destinationBox = Hive.box<Destination>('destinationBox');
     _checkPermissions();
     _loadTodayDistance();
     _loadCompletedPlaces();
@@ -176,6 +181,22 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
     }
   }
 
+  void _updateDestinationDistance(Position position) {
+    final destination = _destinationBox.get('current');
+    if (destination != null) {
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        destination.destLatitude,
+        destination.destLongitude,
+      ) / 1000; // Convert to kilometers
+      
+      setState(() {
+        _destinationDistance = distance;
+      });
+    }
+  }
+
   void _startTracking() async {
     final settings = _settingsBox.get('current') ?? AppSettings();
     settings.isTracking = true;
@@ -198,21 +219,16 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
 
         final location = TrackedLocation.fromPosition(newPosition);
         final todayLocations = _locationsBox.values
-            .where((loc) => loc.date == location.date)
+            .where((loc) => loc.timestamp.day == DateTime.now().day)
             .length;
 
         if (todayLocations < MAX_LOCATIONS_PER_DAY) {
           await _locationsBox.add(location);
         }
 
-        _checkPlaceCompletion(newPosition);
-
         setState(() {
-          _currentPosition = newPosition;
-          _lastUpdateTime = DateFormat('HH:mm:ss').format(DateTime.now());
-
           if (_lastPosition != null) {
-            double distance = Geolocator.distanceBetween(
+            final distance = Geolocator.distanceBetween(
               _lastPosition!.latitude,
               _lastPosition!.longitude,
               newPosition.latitude,
@@ -221,11 +237,15 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
             _totalDistance += distance;
             _saveTodayDistance();
           }
-
+          _currentPosition = newPosition;
           _lastPosition = newPosition;
+          _lastUpdateTime = DateFormat('HH:mm:ss').format(DateTime.now());
         });
+
+        _checkPlaceCompletion(newPosition);
+        _updateDestinationDistance(newPosition);
       } catch (e) {
-        print('Error getting location: $e');
+        print('Error updating location: $e');
       }
     });
   }
@@ -295,6 +315,18 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
         title: const Text('Location Tracker'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.location_on),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DestinationInputScreen(),
+                ),
+              );
+            },
+            tooltip: 'Set Destination',
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () {
@@ -375,6 +407,13 @@ class _LocationTrackerScreenState extends State<LocationTrackerScreen> {
                                     color: Theme.of(context).primaryColor,
                                   ),
                         ),
+                        Text(
+                        'Remaining Distance: ${(_destinationDistance).toStringAsFixed(2)} km',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                        )
                       ],
                       if (_lastUpdateTime.isNotEmpty) ...[
                         const SizedBox(height: 8),

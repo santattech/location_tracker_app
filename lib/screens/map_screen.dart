@@ -408,17 +408,17 @@ class _MapScreenState extends State<MapScreen> {
                             loc.latitude,
                             loc.longitude,
                           ),
-                          width: isBeforeCurrent ? 16 : 12,
-                          height: isBeforeCurrent ? 16 : 12,
+                          width: isBeforeCurrent ? 10 : 10,
+                          height: isBeforeCurrent ? 10 : 10,
                           builder: (context) => Tooltip(
                             message: DateFormat('HH:mm:ss').format(loc.timestamp),
                             child: Container(
                               decoration: BoxDecoration(
-                                color: color.withOpacity(isBeforeCurrent ? 0.8 : 0.3),
+                                color: color.withOpacity(isBeforeCurrent ? 0.3 : 0.3),
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: color.withOpacity(isBeforeCurrent ? 1 : 0.5),
-                                  width: isBeforeCurrent ? 2 : 1,
+                                  color: color.withOpacity(isBeforeCurrent ? 0.5 : 0.5),
+                                  width: isBeforeCurrent ? 1 : 1,
                                 ),
                               ),
                             ),
