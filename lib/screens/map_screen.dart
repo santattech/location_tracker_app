@@ -462,7 +462,7 @@ class _MapScreenState extends State<MapScreen> {
                         double speedKmh = 0;
                         if (timeSeconds > 0) {
                           // since the aerial and driving distance is different, we will multiply by 1.25
-                          speedKmh = (distanceMeters / 1000) / (timeSeconds / 3600);
+                          speedKmh = (distanceMeters * 1.25 / 1000) / (timeSeconds / 3600);
                         }
                         return Text(
                           'Speed: ${speedKmh.toStringAsFixed(2)} km/h',
