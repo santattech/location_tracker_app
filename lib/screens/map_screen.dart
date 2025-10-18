@@ -446,6 +446,30 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  // Speed indicator
+                  if (_currentLocationIndex > 0)
+                    Builder(
+                      builder: (context) {
+                        final prev = _trackedLocations[_currentLocationIndex - 1];
+                        final curr = _trackedLocations[_currentLocationIndex];
+                        final distanceMeters = Geolocator.distanceBetween(
+                          prev.latitude,
+                          prev.longitude,
+                          curr.latitude,
+                          curr.longitude,
+                        );
+                        final timeSeconds = curr.timestamp.difference(prev.timestamp).inSeconds;
+                        double speedKmh = 0;
+                        if (timeSeconds > 0) {
+                          // since the aerial and driving distance is different, we will multiply by 1.25
+                          speedKmh = (distanceMeters * 1.25 / 1000) / (timeSeconds / 3600);
+                        }
+                        return Text(
+                          'Speed: ${speedKmh.toStringAsFixed(2)} km/h',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.blue),
+                        );
+                      },
+                    ),
                   const SizedBox(height: 8),
                   // Progress slider
                   Slider(
