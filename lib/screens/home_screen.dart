@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Trip? _currentTrip;
   Timer? _locationTimer;
   bool _isTracking = false;
+  String? _errorMessage;
   late Box<Trip> _tripsBox;
 
   @override
@@ -32,8 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _checkActiveTrip() async {
+    print('Checking for active trips...');
     final activeTrip = _tripsBox.values.where((trip) => trip.endTime == null).firstOrNull;
     if (activeTrip != null) {
+      print('Found active trip: ${activeTrip.id}');
       setState(() {
         _currentTrip = activeTrip;
         _isTracking = true;
@@ -42,14 +45,18 @@ class _HomeScreenState extends State<HomeScreen> {
       // Ensure background service is running for active trip
       final service = FlutterBackgroundService();
       final isRunning = await service.isRunning();
+      print('Background service running: $isRunning');
       if (!isRunning) {
         await service.startService();
         service.invoke("setAsForeground");
+        print('Background service started');
       }
       
       _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
         _updateLocation();
       });
+    } else {
+      print('No active trips found');
     }
   }
 
@@ -61,46 +68,101 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _errorMessage = null;
+      });
+
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _errorMessage = 'Location services are disabled. Please enable GPS.';
+        });
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _errorMessage = 'Location permissions denied. Please grant location access.';
+          });
+          return;
+        }
+      }
+      
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _errorMessage = 'Location permissions permanently denied. Please enable in settings.';
+        });
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       setState(() {
         _currentPosition = position;
+        _errorMessage = null;
       });
       _mapController.move(LatLng(position.latitude, position.longitude), 15.0);
+      print('Location obtained: ${position.latitude}, ${position.longitude}');
     } catch (e) {
+      setState(() {
+        _errorMessage = 'Error getting location: $e';
+      });
       print('Error getting location: $e');
     }
   }
 
   void _startTrip() async {
-    if (_currentPosition == null) return;
-
-    final trip = Trip(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      startTime: DateTime.now(),
-      locations: [
-        TripLocation(
-          latitude: _currentPosition!.latitude,
-          longitude: _currentPosition!.longitude,
-          timestamp: DateTime.now(),
-        )
-      ],
-    );
-
-    _tripsBox.add(trip);
+    print('Start trip button pressed');
     
-    setState(() {
-      _currentTrip = trip;
-      _isTracking = true;
-    });
+    if (_currentPosition == null) {
+      print('No current position available');
+      await _getCurrentLocation();
+      if (_currentPosition == null) {
+        print('Still no position after getting location');
+        return;
+      }
+    }
 
-    // Start background service
-    final service = FlutterBackgroundService();
-    await service.startService();
-    service.invoke("setAsForeground");
+    try {
+      final trip = Trip(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        startTime: DateTime.now(),
+        locations: [
+          TripLocation(
+            latitude: _currentPosition!.latitude,
+            longitude: _currentPosition!.longitude,
+            timestamp: DateTime.now(),
+          )
+        ],
+      );
 
-    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _updateLocation();
-    });
+      await _tripsBox.add(trip);
+      print('Trip added to database: ${trip.id}');
+      
+      setState(() {
+        _currentTrip = trip;
+        _isTracking = true;
+      });
+      print('State updated: tracking = $_isTracking');
+
+      // Start background service
+      final service = FlutterBackgroundService();
+      await service.startService();
+      service.invoke("setAsForeground");
+      print('Background service started');
+
+      _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+        _updateLocation();
+      });
+      print('Location timer started');
+    } catch (e) {
+      print('Error starting trip: $e');
+    }
   }
 
   void _stopTrip() async {
@@ -123,7 +185,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _updateLocation() async {
     try {
-      Position position = await Geolocator.getCurrentPosition();
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      print('Location updated: ${position.latitude}, ${position.longitude}');
       
       if (_currentTrip != null) {
         final newLocation = TripLocation(
@@ -143,9 +208,11 @@ class _HomeScreenState extends State<HomeScreen> {
             position.longitude,
           );
           _currentTrip!.totalDistance += distance;
+          print('Distance added: $distance, Total: ${_currentTrip!.totalDistance}');
         }
         
-        _currentTrip!.save();
+        await _currentTrip!.save();
+        print('Trip saved with ${_currentTrip!.locations.length} locations');
       }
 
       setState(() {
@@ -225,6 +292,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_errorMessage != null) ...[
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _getCurrentLocation,
+                        child: const Text('Retry'),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     if (_isTracking && _currentTrip != null) ...[
                       Text(
                         'Distance: ${(_currentTrip!.totalDistance / 1000).toStringAsFixed(2)} km',
@@ -233,7 +313,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 8),
                     ],
                     ElevatedButton(
-                      onPressed: _isTracking ? _stopTrip : _startTrip,
+                      onPressed: _currentPosition != null 
+                          ? (_isTracking ? _stopTrip : _startTrip)
+                          : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _isTracking ? Colors.red : Colors.green,
                         foregroundColor: Colors.white,
