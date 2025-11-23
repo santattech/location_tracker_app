@@ -98,7 +98,6 @@ Future<void> initializeService() async {
     iosConfiguration: IosConfiguration(
       autoStart: false,
       onForeground: onStart,
-      onBackground: onStart,
     ),
   );
 }
