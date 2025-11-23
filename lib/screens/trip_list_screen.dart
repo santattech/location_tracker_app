@@ -7,6 +7,30 @@ import 'trip_detail_screen.dart';
 class TripListScreen extends StatelessWidget {
   const TripListScreen({super.key});
 
+  Future<void> _deleteTrip(BuildContext context, Trip trip) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Trip'),
+        content: const Text('Are you sure you want to delete this trip? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await trip.delete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,12 +81,22 @@ class TripListScreen extends StatelessWidget {
                         ),
                     ],
                   ),
-                  trailing: trip.endTime == null
-                      ? const Chip(
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (trip.endTime == null)
+                        const Chip(
                           label: Text('Active'),
                           backgroundColor: Colors.green,
                         )
-                      : const Icon(Icons.arrow_forward_ios),
+                      else
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteTrip(context, trip),
+                        ),
+                      const Icon(Icons.arrow_forward_ios),
+                    ],
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,

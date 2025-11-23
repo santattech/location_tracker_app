@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/trip.dart';
 
 class TripDetailScreen extends StatefulWidget {
@@ -98,6 +100,49 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     setState(() {
       _isPlaying = false;
     });
+  }
+
+  Future<void> _exportToKML() async {
+    try {
+      final directory = await getExternalStorageDirectory();
+      final fileName = 'trip_${DateFormat('yyyyMMdd_HHmmss').format(widget.trip.startTime)}.kml';
+      final file = File('${directory!.path}/$fileName');
+
+      final kmlContent = _generateKML();
+      await file.writeAsString(kmlContent);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('KML exported to: ${file.path}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
+  }
+
+  String _generateKML() {
+    final coordinates = widget.trip.locations
+        .map((loc) => '${loc.longitude},${loc.latitude},0')
+        .join(' ');
+
+    return '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Trip ${DateFormat('MMM dd, yyyy HH:mm').format(widget.trip.startTime)}</name>
+    <description>Distance: ${(widget.trip.totalDistance / 1000).toStringAsFixed(2)} km</description>
+    <Placemark>
+      <name>Trip Route</name>
+      <LineString>
+        <coordinates>$coordinates</coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>''';
   }
 
   @override
@@ -230,18 +275,31 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           if (widget.trip.locations.length > 1)
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: _isPlaying ? _stopPlayback : _startPlayback,
-                    icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
-                    label: Text(_isPlaying ? 'Stop' : 'Play Trip'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _isPlaying ? _stopPlayback : _startPlayback,
+                        icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
+                        label: Text(_isPlaying ? 'Stop' : 'Play Trip'),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _fitMapToBounds,
+                        icon: const Icon(Icons.fit_screen),
+                        label: const Text('Fit to Screen'),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
                   ElevatedButton.icon(
-                    onPressed: _fitMapToBounds,
-                    icon: const Icon(Icons.fit_screen),
-                    label: const Text('Fit to Screen'),
+                    onPressed: _exportToKML,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Export to KML'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(200, 40),
+                    ),
                   ),
                 ],
               ),
