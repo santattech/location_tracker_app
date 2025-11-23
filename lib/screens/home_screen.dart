@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../models/trip.dart';
 import 'trip_list_screen.dart';
 
@@ -27,6 +28,29 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _tripsBox = Hive.box<Trip>('trips');
     _getCurrentLocation();
+    _checkActiveTrip();
+  }
+
+  void _checkActiveTrip() async {
+    final activeTrip = _tripsBox.values.where((trip) => trip.endTime == null).firstOrNull;
+    if (activeTrip != null) {
+      setState(() {
+        _currentTrip = activeTrip;
+        _isTracking = true;
+      });
+      
+      // Ensure background service is running for active trip
+      final service = FlutterBackgroundService();
+      final isRunning = await service.isRunning();
+      if (!isRunning) {
+        await service.startService();
+        service.invoke("setAsForeground");
+      }
+      
+      _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+        _updateLocation();
+      });
+    }
   }
 
   @override
@@ -47,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _startTrip() {
+  void _startTrip() async {
     if (_currentPosition == null) return;
 
     final trip = Trip(
@@ -69,18 +93,27 @@ class _HomeScreenState extends State<HomeScreen> {
       _isTracking = true;
     });
 
+    // Start background service
+    final service = FlutterBackgroundService();
+    await service.startService();
+    service.invoke("setAsForeground");
+
     _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _updateLocation();
     });
   }
 
-  void _stopTrip() {
+  void _stopTrip() async {
     if (_currentTrip == null) return;
 
     _currentTrip!.endTime = DateTime.now();
     _currentTrip!.save();
 
     _locationTimer?.cancel();
+    
+    // Stop background service
+    final service = FlutterBackgroundService();
+    service.invoke("stopService");
     
     setState(() {
       _isTracking = false;
