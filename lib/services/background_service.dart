@@ -5,16 +5,30 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/trip.dart';
 
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   
-  await Hive.initFlutter();
-  Hive.registerAdapter(TripAdapter());
-  Hive.registerAdapter(TripLocationAdapter());
-  await Hive.openBox<Trip>('trips');
+  try {
+    final appDocumentDir = await getApplicationDocumentsDirectory();
+    await Hive.initFlutter(appDocumentDir.path);
+    
+    if (!Hive.isAdapterRegistered(5)) {
+      Hive.registerAdapter(TripAdapter());
+    }
+    if (!Hive.isAdapterRegistered(6)) {
+      Hive.registerAdapter(TripLocationAdapter());
+    }
+    
+    if (!Hive.isBoxOpen('trips')) {
+      await Hive.openBox<Trip>('trips');
+    }
+  } catch (e) {
+    print('Background service Hive init error: $e');
+  }
 
   if (service is AndroidServiceInstance) {
     service.on('setAsForeground').listen((event) {
@@ -32,11 +46,15 @@ void onStart(ServiceInstance service) async {
 
   Timer.periodic(const Duration(seconds: 5), (timer) async {
     try {
+      if (!Hive.isBoxOpen('trips')) {
+        timer.cancel();
+        return;
+      }
+      
       final box = Hive.box<Trip>('trips');
       final activeTrip = box.values.where((trip) => trip.endTime == null).firstOrNull;
       
       if (activeTrip == null) {
-        // No active trip, stop the service
         service.stopSelf();
         timer.cancel();
         return;
@@ -55,7 +73,10 @@ void onStart(ServiceInstance service) async {
 
 Future<void> _updateLocation(Trip activeTrip) async {
   try {
-    final position = await Geolocator.getCurrentPosition();
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.medium,
+      timeLimit: const Duration(seconds: 10),
+    );
     
     final newLocation = TripLocation(
       latitude: position.latitude,

@@ -34,29 +34,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _checkActiveTrip() async {
     print('Checking for active trips...');
-    final activeTrip = _tripsBox.values.where((trip) => trip.endTime == null).firstOrNull;
-    if (activeTrip != null) {
-      print('Found active trip: ${activeTrip.id}');
-      setState(() {
-        _currentTrip = activeTrip;
-        _isTracking = true;
-      });
-      
-      // Ensure background service is running for active trip
-      final service = FlutterBackgroundService();
-      final isRunning = await service.isRunning();
-      print('Background service running: $isRunning');
-      if (!isRunning) {
-        await service.startService();
-        service.invoke("setAsForeground");
-        print('Background service started');
+    try {
+      final activeTrip = _tripsBox.values.where((trip) => trip.endTime == null).firstOrNull;
+      if (activeTrip != null) {
+        print('Found active trip: ${activeTrip.id}');
+        setState(() {
+          _currentTrip = activeTrip;
+          _isTracking = true;
+        });
+        
+        _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+          _updateLocation();
+        });
+        print('Resumed active trip tracking');
+      } else {
+        print('No active trips found');
       }
-      
-      _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-        _updateLocation();
-      });
-    } else {
-      print('No active trips found');
+    } catch (e) {
+      print('Error checking active trip: $e');
     }
   }
 
@@ -150,37 +145,39 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       print('State updated: tracking = $_isTracking');
 
-      // Start background service
-      final service = FlutterBackgroundService();
-      await service.startService();
-      service.invoke("setAsForeground");
-      print('Background service started');
-
       _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
         _updateLocation();
       });
       print('Location timer started');
     } catch (e) {
       print('Error starting trip: $e');
+      setState(() {
+        _errorMessage = 'Error starting trip: $e';
+      });
     }
   }
 
   void _stopTrip() async {
     if (_currentTrip == null) return;
 
-    _currentTrip!.endTime = DateTime.now();
-    _currentTrip!.save();
+    try {
+      _currentTrip!.endTime = DateTime.now();
+      await _currentTrip!.save();
+      print('Trip stopped and saved');
 
-    _locationTimer?.cancel();
-    
-    // Stop background service
-    final service = FlutterBackgroundService();
-    service.invoke("stopService");
-    
-    setState(() {
-      _isTracking = false;
-      _currentTrip = null;
-    });
+      _locationTimer?.cancel();
+      
+      setState(() {
+        _isTracking = false;
+        _currentTrip = null;
+      });
+      print('Trip stopped successfully');
+    } catch (e) {
+      print('Error stopping trip: $e');
+      setState(() {
+        _errorMessage = 'Error stopping trip: $e';
+      });
+    }
   }
 
   Future<void> _updateLocation() async {
