@@ -4,11 +4,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'models/trip.dart';
 import 'screens/home_screen.dart';
+import 'services/location_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Geolocator.requestPermission();
+  await LocationService.initialize();
 
   // Initialize Hive
   final appDocumentDir = await path_provider.getApplicationDocumentsDirectory();

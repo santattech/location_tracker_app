@@ -18,8 +18,7 @@ dependencies:
   path_provider: ^2.1.0
   flutter_map: ^5.0.0
   latlong2: ^0.9.0
-  flutter_background_service: ^2.4.6
-  flutter_background_service_android: ^3.0.3
+  workmanager: ^0.5.2
   googleapis: ^11.4.0
   google_sign_in: ^6.1.5
   http: ^1.1.0

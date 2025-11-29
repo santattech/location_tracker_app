@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/trip.dart';
+import '../services/location_service.dart';
 import 'trip_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -144,6 +145,10 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       print('State updated: tracking = $_isTracking');
 
+      // Start background tracking
+      await LocationService.startTracking();
+      print('Background tracking started');
+
       _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
         _updateLocation();
       });
@@ -165,6 +170,10 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Trip stopped and saved');
 
       _locationTimer?.cancel();
+      
+      // Stop background tracking
+      await LocationService.stopTracking();
+      print('Background tracking stopped');
       
       setState(() {
         _isTracking = false;
