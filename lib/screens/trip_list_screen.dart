@@ -55,46 +55,103 @@ class TripListScreen extends StatelessWidget {
               final duration = trip.endTime != null
                   ? trip.endTime!.difference(trip.startTime)
                   : Duration.zero;
+              final isActive = trip.endTime == null;
 
-              return Card(
+              return Container(
                 margin: const EdgeInsets.all(8.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border(
+                    left: BorderSide(
+                      color: isActive 
+                          ? const Color(0xFF4CAF50) // Success Green for active
+                          : const Color(0xFF3F51B5), // Indigo Blue for completed
+                      width: 4.0,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      spreadRadius: 1,
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
                 child: ListTile(
+                  contentPadding: const EdgeInsets.all(14.0),
                   title: Text(
-                    'Trip ${DateFormat('MMM dd, yyyy').format(trip.startTime)}',
+                    'Trip #${trip.id.substring(trip.id.length - 4)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF424242),
+                    ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const SizedBox(height: 4),
                       Text(
-                        'Start: ${DateFormat('HH:mm').format(trip.startTime)}',
-                      ),
-                      if (trip.endTime != null)
-                        Text(
-                          'End: ${DateFormat('HH:mm').format(trip.endTime!)}',
+                        '${DateFormat('MMM dd, yyyy • HH:mm').format(trip.startTime)}${trip.endTime != null ? ' - ${DateFormat('HH:mm').format(trip.endTime!)}' : ''}',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 13,
                         ),
-                      Text(
-                        'Distance: ${(trip.totalDistance / 1000).toStringAsFixed(2)} km',
                       ),
-                      if (trip.endTime != null)
+                      if (trip.endTime != null) ...[
+                        const SizedBox(height: 2),
                         Text(
                           'Duration: ${duration.inHours}h ${duration.inMinutes % 60}m',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
                         ),
+                      ],
+                      const SizedBox(height: 2),
+                      Text(
+                        'Distance: ${(trip.totalDistance / 1000).toStringAsFixed(2)} km',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (trip.endTime == null)
-                        const Chip(
-                          label: Text('Active'),
-                          backgroundColor: Colors.green,
+                      if (isActive)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Active',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         )
                       else
                         IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Color(0xFFD32F2F),
+                          ),
                           onPressed: () => _deleteTrip(context, trip),
                         ),
-                      const Icon(Icons.arrow_forward_ios),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
                     ],
                   ),
                   onTap: () {

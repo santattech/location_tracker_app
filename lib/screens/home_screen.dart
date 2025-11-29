@@ -308,6 +308,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 8),
                       ElevatedButton(
                         onPressed: _getCurrentLocation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3F51B5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                         child: const Text('Retry'),
                       ),
                       const SizedBox(height: 8),
@@ -324,11 +331,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? (_isTracking ? _stopTrip : _startTrip)
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isTracking ? Colors.red : Colors.green,
+                        backgroundColor: _isTracking 
+                            ? const Color(0xFFD32F2F) // Error Red for stop
+                            : const Color(0xFFFF7043), // Deep Orange for start
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text(_isTracking ? 'Stop Trip' : 'Start Trip'),
+                      child: Text(
+                        _isTracking ? 'Stop Trip' : 'Start Trip',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
                 ),

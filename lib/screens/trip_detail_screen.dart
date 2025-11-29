@@ -360,29 +360,43 @@ class GoogleAuthClient extends http.BaseClient {
                         onPressed: _isPlaying ? _stopPlayback : _startPlayback,
                         icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
                         label: Text(_isPlaying ? 'Stop' : 'Play Trip'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isPlaying 
+                              ? const Color(0xFFD32F2F) 
+                              : const Color(0xFF3F51B5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
                       ElevatedButton.icon(
                         onPressed: _fitMapToBounds,
                         icon: const Icon(Icons.fit_screen),
                         label: const Text('Fit to Screen'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3F51B5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _exportToKML,
-                        icon: const Icon(Icons.download),
-                        label: const Text('Export KML'),
+                  ElevatedButton.icon(
+                    onPressed: _exportToKML,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Export to KML'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF7043),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(200, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _uploadToGoogleDrive,
-                        icon: const Icon(Icons.cloud_upload),
-                        label: const Text('Upload to Drive'),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
