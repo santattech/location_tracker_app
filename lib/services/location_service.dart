@@ -40,6 +40,14 @@ void callbackDispatcher() {
         }
         
         await activeTrip.save();
+        
+        // Schedule next task in 1 minute if trip is still active
+        await Workmanager().registerOneOffTask(
+          "location-${DateTime.now().millisecondsSinceEpoch}",
+          locationTaskName,
+          initialDelay: const Duration(minutes: 1),
+        );
+        
         return Future.value(true);
       }
     } catch (e) {
@@ -56,21 +64,15 @@ class LocationService {
   }
   
   static Future<void> startTracking() async {
-    await Workmanager().registerPeriodicTask(
-      "location-tracking",
+    // Start with immediate task, then chain 1-minute intervals
+    await Workmanager().registerOneOffTask(
+      "location-initial",
       locationTaskName,
-      frequency: const Duration(minutes: 15), // Minimum allowed by Android
-      constraints: Constraints(
-        networkType: NetworkType.not_required,
-        requiresBatteryNotLow: false,
-        requiresCharging: false,
-        requiresDeviceIdle: false,
-        requiresStorageNotLow: false,
-      ),
+      initialDelay: const Duration(minutes: 1),
     );
   }
   
   static Future<void> stopTracking() async {
-    await Workmanager().cancelByUniqueName("location-tracking");
+    await Workmanager().cancelAll();
   }
 }
