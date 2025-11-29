@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/trip.dart';
 import '../services/location_service.dart';
 import 'trip_list_screen.dart';
+import 'driving_score_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -234,6 +235,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Location Tracker'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.speed),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DrivingScoreScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.list),
             onPressed: () {
