@@ -4,7 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import '../models/trip.dart';
 import 'trip_list_screen.dart';
 
@@ -145,12 +144,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       print('State updated: tracking = $_isTracking');
 
-      // Start background service
-      final service = FlutterBackgroundService();
-      await service.startService();
-      service.invoke("setAsForeground");
-      print('Background service started');
-
       _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
         _updateLocation();
       });
@@ -172,10 +165,6 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Trip stopped and saved');
 
       _locationTimer?.cancel();
-      
-      // Stop background service
-      final service = FlutterBackgroundService();
-      service.invoke("stopService");
       
       setState(() {
         _isTracking = false;
