@@ -104,7 +104,16 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   Future<void> _exportToKML() async {
     try {
-      final directory = await getExternalStorageDirectory();
+      Directory? directory;
+      if (Platform.isAndroid) {
+        directory = Directory('/storage/emulated/0/Download');
+        if (!await directory.exists()) {
+          directory = await getExternalStorageDirectory();
+        }
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+      
       final fileName = 'trip_${DateFormat('yyyyMMdd_HHmmss').format(widget.trip.startTime)}.kml';
       final file = File('${directory!.path}/$fileName');
 
@@ -113,7 +122,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('KML exported to: ${file.path}')),
+          SnackBar(content: Text('KML exported to Downloads: $fileName')),
         );
       }
     } catch (e) {

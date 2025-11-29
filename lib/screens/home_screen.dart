@@ -145,6 +145,12 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       print('State updated: tracking = $_isTracking');
 
+      // Start background service
+      final service = FlutterBackgroundService();
+      await service.startService();
+      service.invoke("setAsForeground");
+      print('Background service started');
+
       _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
         _updateLocation();
       });
@@ -166,6 +172,10 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Trip stopped and saved');
 
       _locationTimer?.cancel();
+      
+      // Stop background service
+      final service = FlutterBackgroundService();
+      service.invoke("stopService");
       
       setState(() {
         _isTracking = false;
