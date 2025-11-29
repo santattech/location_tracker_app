@@ -4,8 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import '../models/trip.dart';
+import '../services/location_service.dart';
 import 'trip_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -145,11 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       print('State updated: tracking = $_isTracking');
 
-      // Start background service
-      final service = FlutterBackgroundService();
-      await service.startService();
-      service.invoke("setAsForeground");
-      print('Background service started');
+      // Start background tracking
+      await LocationService.startTracking();
+      print('Background tracking started');
 
       _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
         _updateLocation();
@@ -173,9 +171,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       _locationTimer?.cancel();
       
-      // Stop background service
-      final service = FlutterBackgroundService();
-      service.invoke("stopService");
+      // Stop background tracking
+      await LocationService.stopTracking();
+      print('Background tracking stopped');
       
       setState(() {
         _isTracking = false;
@@ -308,6 +306,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 8),
                       ElevatedButton(
                         onPressed: _getCurrentLocation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3F51B5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                         child: const Text('Retry'),
                       ),
                       const SizedBox(height: 8),
@@ -324,11 +329,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? (_isTracking ? _stopTrip : _startTrip)
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isTracking ? Colors.red : Colors.green,
+                        backgroundColor: _isTracking 
+                            ? const Color(0xFFD32F2F) // Error Red for stop
+                            : const Color(0xFFFF7043), // Deep Orange for start
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text(_isTracking ? 'Stop Trip' : 'Start Trip'),
+                      child: Text(
+                        _isTracking ? 'Stop Trip' : 'Start Trip',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
                 ),
