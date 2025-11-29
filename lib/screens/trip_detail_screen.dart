@@ -5,6 +5,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:googleapis/drive/v3.dart' as drive;
+import 'package:http/http.dart' as http;
 import '../models/trip.dart';
 
 class TripDetailScreen extends StatefulWidget {
@@ -104,7 +107,16 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   Future<void> _exportToKML() async {
     try {
-      final directory = await getExternalStorageDirectory();
+      Directory? directory;
+      if (Platform.isAndroid) {
+        directory = Directory('/storage/emulated/0/Download');
+        if (!await directory.exists()) {
+          directory = await getExternalStorageDirectory();
+        }
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+      
       final fileName = 'trip_${DateFormat('yyyyMMdd_HHmmss').format(widget.trip.startTime)}.kml';
       final file = File('${directory!.path}/$fileName');
 
@@ -113,7 +125,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('KML exported to: ${file.path}')),
+          SnackBar(content: Text('KML exported to Downloads: $fileName')),
         );
       }
     } catch (e) {
@@ -143,6 +155,70 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     </Placemark>
   </Document>
 </kml>''';
+  }
+
+  Future<void> _uploadToGoogleDrive() async {
+    try {
+      final googleSignIn = GoogleSignIn(scopes: [drive.DriveApi.driveFileScope]);
+      final account = await googleSignIn.signIn();
+      
+      if (account == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Google Sign-In cancelled')),
+          );
+        }
+        return;
+      }
+
+      final authHeaders = await account.authHeaders;
+      final authenticateClient = GoogleAuthClient(authHeaders);
+      final driveApi = drive.DriveApi(authenticateClient);
+
+      final fileName = 'trip_${DateFormat('yyyyMMdd_HHmmss').format(widget.trip.startTime)}.kml';
+      final kmlContent = _generateKML();
+
+      final driveFile = drive.File();
+      driveFile.name = fileName;
+      driveFile.parents = ['appDataFolder'];
+
+      final media = drive.Media(
+        Stream.fromIterable([kmlContent.codeUnits]),
+        kmlContent.length,
+      );
+
+      await driveApi.files.create(driveFile, uploadMedia: media);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Trip uploaded to Google Drive: $fileName')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google Drive upload failed: $e')),
+        );
+      }
+    }
+  }
+}
+
+class GoogleAuthClient extends http.BaseClient {
+  final Map<String, String> _headers;
+  final http.Client _client = http.Client();
+
+  GoogleAuthClient(this._headers);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    request.headers.addAll(_headers);
+    return _client.send(request);
+  }
+
+  @override
+  void close() {
+    _client.close();
   }
 
   @override
@@ -293,13 +369,20 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _exportToKML,
-                    icon: const Icon(Icons.download),
-                    label: const Text('Export to KML'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(200, 40),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _exportToKML,
+                        icon: const Icon(Icons.download),
+                        label: const Text('Export KML'),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _uploadToGoogleDrive,
+                        icon: const Icon(Icons.cloud_upload),
+                        label: const Text('Upload to Drive'),
+                      ),
+                    ],
                   ),
                 ],
               ),
