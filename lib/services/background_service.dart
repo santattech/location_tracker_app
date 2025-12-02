@@ -1,49 +1,103 @@
 import 'dart:async';
-import 'package:geolocator/geolocator.dart';
+import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
-import 'package:hive/hive.dart';
-import '../models/tracked_location.dart';
-import 'dart:ui';
+import 'package:geolocator/geolocator.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../models/trip.dart';
 
 @pragma('vm:entry-point')
-void onStart(ServiceInstance service) {
+void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   
+  await Hive.initFlutter();
+  Hive.registerAdapter(TripAdapter());
+  Hive.registerAdapter(TripLocationAdapter());
+  await Hive.openBox<Trip>('trips');
+
   if (service is AndroidServiceInstance) {
-    service.setAsForegroundService();
-    service.setForegroundNotificationInfo(
-      title: 'Location tracking',
-      content: 'Service is running in the background',
-    );
+    service.on('setAsForeground').listen((event) {
+      service.setAsForegroundService();
+    });
+
+    service.on('setAsBackground').listen((event) {
+      service.setAsBackgroundService();
+    });
   }
-
-  Timer.periodic(Duration(seconds: 60), (timer) async {
-    try {
-      Position position = await Geolocator.getCurrentPosition();
-      print("Location: ${position.latitude}, ${position.longitude}");
-
-      // Create TrackedLocation instance
-      final location = TrackedLocation.fromPosition(position);
-      
-      // Open the Hive box and store the location
-      final box = await Hive.openBox<TrackedLocation>('locations');
-      await box.add(location);
-      
-      // Update notification with current location info
-      if (service is AndroidServiceInstance) {
-        // I do not want to send notification every time
-        // service.setForegroundNotificationInfo(
-        //   title: 'Location tracking',
-        //   content: 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}',
-        // );
-      }
-    } catch (e) {
-      print('Error tracking location: $e');
-    }
-  });
 
   service.on('stopService').listen((event) {
     service.stopSelf();
   });
+
+  Timer.periodic(const Duration(seconds: 5), (timer) async {
+    try {
+      final box = Hive.box<Trip>('trips');
+      final activeTrip = box.values.where((trip) => trip.endTime == null).firstOrNull;
+      
+      if (activeTrip == null) {
+        // No active trip, stop the service
+        service.stopSelf();
+        timer.cancel();
+        return;
+      }
+
+      if (service is AndroidServiceInstance) {
+        if (await service.isForegroundService()) {
+          await _updateLocation(activeTrip);
+        }
+      }
+    } catch (e) {
+      print('Service timer error: $e');
+    }
+  });
+}
+
+Future<void> _updateLocation(Trip activeTrip) async {
+  try {
+    final position = await Geolocator.getCurrentPosition();
+    
+    final newLocation = TripLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      timestamp: DateTime.now(),
+    );
+    
+    activeTrip.locations.add(newLocation);
+    
+    if (activeTrip.locations.length > 1) {
+      final lastLocation = activeTrip.locations[activeTrip.locations.length - 2];
+      final distance = Geolocator.distanceBetween(
+        lastLocation.latitude,
+        lastLocation.longitude,
+        position.latitude,
+        position.longitude,
+      );
+      activeTrip.totalDistance += distance;
+    }
+    
+    await activeTrip.save();
+  } catch (e) {
+    print('Background location update error: $e');
+  }
+}
+
+Future<void> initializeService() async {
+  final service = FlutterBackgroundService();
+
+  await service.configure(
+    androidConfiguration: AndroidConfiguration(
+      onStart: onStart,
+      autoStart: false,
+      isForegroundMode: true,
+      notificationChannelId: 'location_tracking',
+      initialNotificationTitle: 'Location Tracking',
+      initialNotificationContent: 'Tracking your trip in background',
+      foregroundServiceNotificationId: 888,
+    ),
+    iosConfiguration: IosConfiguration(
+      autoStart: false,
+      onForeground: onStart,
+    ),
+  );
 }
